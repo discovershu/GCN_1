@@ -122,7 +122,7 @@ def masked_dir_error(pred, labels, mask):
 def masked_dir_error2(pred, labels, mask):
     prod = np.prod(pred, axis=0)
     prod_pow = np.power(prod, 1.0 / len(pred))
-    label = (np.sum(labels, axis=0) + 1) / float(len(labels)+3)
+    label = (np.sum(labels, axis=0) + 1) / float(len(labels) + 3)
     mask = np.asarray(mask, dtype=float)
     mask /= np.mean(mask)
     loss = np.square(prod_pow - label)
@@ -130,13 +130,51 @@ def masked_dir_error2(pred, labels, mask):
     loss *= mask
     return np.mean(loss)
 
+
 def masked_dir_error3(pred, labels, mask):
+    S = len(pred) + 3.0
     prod = np.prod(pred, axis=0)
     prod_pow = np.power(prod, 1.0 / len(pred))
-    label = (np.sum(labels, axis=0) + 1) / float(len(labels)+3)
+    prod_pow = prod_pow - 1.0/S
+    label = (np.sum(labels, axis=0)) / float(len(labels) + 3.0)
     mask = np.asarray(mask, dtype=float)
     mask /= np.mean(mask)
     loss = np.abs(prod_pow - label)
     loss = np.mean(loss, axis=1)
     loss *= mask
+    return np.mean(loss)
+
+
+def get_label(pred):
+    arg = np.argmax(pred, axis=2)
+    for i in range(len(pred)):
+        for j in range(len(pred[i])):
+            if arg[i][j] == 0:
+                pred[i][j] = [1, 0, 0]
+            elif arg[i][j] == 1:
+                pred[i][j] = [0, 1, 0]
+            else:
+                pred[i][j] = [0, 0, 1]
+    return pred
+
+
+def masked_dir_error_semi(pred, labels, mask):
+    pred = get_label(pred)
+    evidence_l = np.sum(labels, axis=0)
+    S_l = np.sum(evidence_l, axis=1) + 3.0
+    evidence_p = np.sum(pred, axis=0)
+    S_p = np.sum(evidence_p, axis=1) + 3.0
+    b1_l = evidence_l[:, 0] / S_l
+    b2_l = evidence_l[:, 1] / S_l
+    b3_l = evidence_l[:, 2] / S_l
+    u_l = 3 / S_l
+    b1_p = evidence_p[:, 0] / S_p
+    b2_p = evidence_p[:, 1] / S_p
+    b3_p = evidence_p[:, 2] / S_p
+    u_p = 3 / S_p
+    loss = np.square(b1_l - b1_p) + np.square(b2_l - b2_p) + np.square(b3_l - b3_p) + np.square(u_l - u_p)
+    mask = np.asarray(mask, dtype=float)
+    mask /= np.mean(mask)
+    loss *= mask
+
     return np.mean(loss)

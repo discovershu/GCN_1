@@ -7,7 +7,7 @@ import traffic_data.read_data as read_data
 from gcn.utils import *
 from gcn.models import GCN, MLP
 from collections import Counter
-from metrics import masked_acc, masked_dir_error, masked_dir_error2, masked_dir_error3
+from metrics import masked_acc, masked_dir_error, masked_dir_error2, masked_dir_error3, masked_dir_error_semi
 
 # Set random seed
 seed = 123
@@ -30,7 +30,7 @@ flags.DEFINE_float('test_rat', 0.2, 'Number of test nodes.')
 
 # Load data
 # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(FLAGS.dataset)
-adj, features0, y_train1, _, _, _, _, test_mask0, _, = read_data.load_data_syn_sub(test_rat=FLAGS.test_rat, index=0)
+adj, features0, y_train1, _, _, _, _, test_mask0, _, = read_data.load_data_syn_sub(test_rat=FLAGS.test_rat, index=0, seed=0)
 # Some preprocessing
 # features0 = preprocess_features(features0)
 features0 = sparse_to_tuple(features0)
@@ -78,45 +78,52 @@ def evaluate(features, support, labels, mask, placeholders):
     return outs_val[0], outs_val[1], (time.time() - t_test), outs_val[2]
 
 
-T = 38
+T = 6
 print("Model:", FLAGS.model, "test_rat:", FLAGS.test_rat, "T = ", T)
-p_list = []
-truth = []
-acc = []
+model1_error = []
+gcn_semi_error = []
 with tf.Session(config=config) as sess:
-    for k in range(T):
-        # Train model
-        t1 = time.time()
-        sess.run(tf.global_variables_initializer())
-        # Training part
-        # load data
-        _, features, y_train, _, y_test, train_mask, _, test_mask, _, = read_data.load_data_syn_sub(
-            test_rat=FLAGS.test_rat,
-            index=k)
-        features = sparse_to_tuple(features)
-        for epoch in range(FLAGS.epochs):
-            # features = preprocess_features(features)
+    for p in range(10):
+        p_list = []
+        truth = []
+        acc = []
+        for k in range(T):
+            # Train model
+            t1 = time.time()
+            sess.run(tf.global_variables_initializer())
+            # Training part
+            # load data
+            _, features, y_train, _, y_test, train_mask, _, test_mask, _, = read_data.load_data_syn_sub(
+                test_rat=FLAGS.test_rat, index=k, seed=p)
+            features = sparse_to_tuple(features)
 
-            t = time.time()
-            # Construct feed dictionary
-            feed_dict = construct_feed_dict(features, support, y_train, train_mask, placeholders)
-            feed_dict.update({placeholders['dropout']: FLAGS.dropout})
+            for epoch in range(FLAGS.epochs):
+                # features = preprocess_features(features)
 
-            # Training step
-            # outs = sess.run([model.opt_op, model.loss, model.accuracy, model.predict()], feed_dict=feed_dict)
-            outs = sess.run([model.opt_op, model.loss, model.accuracy], feed_dict=feed_dict)
-            # print("epoch = ", epoch+1, "training loss:", outs[1], "training accuracy:", outs[2])
-            # if np.mod(epoch+1, 100) == 0:
-            #     outs = evaluate(features, support, y_test, test_mask, placeholders)
-            #     print("epoch = ", epoch + 1, "test loss:", outs[0], "test accuracy:", outs[1])
-        outs = evaluate(features, support, y_test, test_mask, placeholders)
-        p_list.append(outs[3])
-        truth.append(y_test)
-        acc.append(outs[1])
-        print("index = ", k + 1, "test loss:", outs[0], "test accuracy:", outs[1])
-    error2 = masked_dir_error2(p_list, truth, test_mask0)
-    error = masked_dir_error(p_list, truth, test_mask0)
-    error3 = masked_dir_error3(p_list, truth, test_mask0)
+                t = time.time()
+                # Construct feed dictionary
+                feed_dict = construct_feed_dict(features, support, y_train, train_mask, placeholders)
+                feed_dict.update({placeholders['dropout']: FLAGS.dropout})
 
+                # Training step
+                # outs = sess.run([model.opt_op, model.loss, model.accuracy, model.predict()], feed_dict=feed_dict)
+                outs = sess.run([model.opt_op, model.loss, model.accuracy], feed_dict=feed_dict)
+                # print("epoch = ", epoch+1, "training loss:", outs[1], "training accuracy:", outs[2])
+                # if np.mod(epoch+1, 100) == 0:
+                #     outs = evaluate(features, support, y_test, test_mask, placeholders)
+                #     print("epoch = ", epoch + 1, "test loss:", outs[0], "test accuracy:", outs[1])
+            outs = evaluate(features, support, y_test, test_mask, placeholders)
+            p_list.append(outs[3])
+            truth.append(y_test)
+            acc.append(outs[1])
+            # print("index = ", k + 1, "test loss:", outs[0], "test accuracy:", outs[1])
+        error2 = masked_dir_error2(p_list, truth, test_mask)
+        error = masked_dir_error(p_list, truth, test_mask)
+        model1_e = masked_dir_error3(p_list, truth, test_mask)
+        error_gcn_semi = masked_dir_error_semi(p_list, truth, test_mask)
 
-    print("Dir error:", "{:.2f}".format(error), "Dir error2:", "{:.3f}".format(error2), "Dir error3:", "{:.3f}".format(error3), "accurate:", "{:.2f}".format(np.mean(acc)))
+        print(p, "Model1 error3:", "{:.3f}".format(model1_e), "GCN-semi error:",
+              "{:.3f}".format(error_gcn_semi))
+        model1_error.append(model1_e)
+        gcn_semi_error.append(error_gcn_semi)
+print("Model1 error3:", "{:.3f}".format(np.mean(model1_error)), "GCN-semi error:", "{:.3f}".format(np.mean(gcn_semi_error)))

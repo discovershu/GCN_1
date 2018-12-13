@@ -454,7 +454,7 @@ def get_sub_fet(feat):
     return feat_n
 
 
-def load_data_syn_sub(test_rat, index):
+def load_data_syn_sub(test_rat, index, seed):
     # adj_n = get_adjacency_matrix()
     adj_n = np.load("/network/rit/lab/ceashpc/xujiang/project/Dir_synthitic/syn_adj_100.npy")
     features_ = np.load("/network/rit/lab/ceashpc/xujiang/project/Dir_synthitic/label_38.npy")
@@ -462,7 +462,7 @@ def load_data_syn_sub(test_rat, index):
 
     feature_n = get_sub_fet(feature_i)
     label = feature_i
-    random.seed(132)
+    random.seed(seed)
     test_num = int(test_rat * len(label))
     test_index = random.sample(range(len(label)), test_num)
 
